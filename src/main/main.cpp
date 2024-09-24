@@ -1,47 +1,47 @@
 #include "Web_Scr_set.h"
 
 // 定义引脚
-#define key 0       //boot按键引脚
-#define led 2       //板载led引脚
-#define light 33     // 灯光引脚
+#define key 0    // boot按键引脚
+#define led 2    // 板载led引脚
+#define light 33 // 灯光引脚
 // 定义音频放大模块的I2S引脚定义
 #define I2S_DOUT 25 // DIN引脚
 #define I2S_BCLK 26 // BCLK引脚
 #define I2S_LRC 27  // LRC引脚
 
-int llm = 0;    // 大模型选择参数:0:豆包，1：讯飞星火
+int llm = 0; // 大模型选择参数:0:豆包，1：讯飞星火
 
 // 选哪个模型，就填哪个模型的参数
 // 豆包大模型的参数
-String model1 = "";   // 在线推理接入点名称，必填
-const char* doubao_apiKey = "";     // 火山引擎API Key，必填
+String model1 = "";             // 在线推理接入点名称，必填
+const char *doubao_apiKey = ""; // 火山引擎API Key，必填
 String apiUrl = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
 
 // 星火大模型的参数
-String APPID = "";                             // 星火大模型的App ID,必填
+String APPID = "";     // 星火大模型的App ID,必填
 String APISecret = ""; // API Secret，必填
 String APIKey = "";    // API Key，必填
 String appId1 = APPID;
-String domain1 = "4.0Ultra";    // 根据需要更改
-String websockets_server = "ws://spark-api.xf-yun.com/v4.0/chat";   // 根据需要更改
+String domain1 = "4.0Ultra";                                      // 根据需要更改
+String websockets_server = "ws://spark-api.xf-yun.com/v4.0/chat"; // 根据需要更改
 String websockets_server1 = "ws://iat-api.xfyun.cn/v2/iat";
 // 角色设定
 String roleSet = "你是一个二次元魔法猫娘，你的名字叫小灵，你的性格可爱活泼，说话简短，同时带有攻击嘲讽意味，你喜欢在回答的末尾加一个“喵”字。";
 
 // 定义一些全局变量
-bool ledstatus = true;          // 控制led闪烁
+bool ledstatus = true; // 控制led闪烁
 bool startPlay = false;
 unsigned long urlTime = 0;
 int receiveFrame = 0;
-int noise = 50;                 // 噪声门限值
-int volume = 80;               // 初始音量大小（最小0，最大100）
-//音乐播放
+int noise = 50;  // 噪声门限值
+int volume = 80; // 初始音量大小（最小0，最大100）
+// 音乐播放
 int mainStatus = 0;
 int conStatus = 0;
-int musicnum = 0;   //音乐位置下标
-int musicplay = 0;  // 是否进入连续播放音乐状态
+int musicnum = 0;  // 音乐位置下标
+int musicplay = 0; // 是否进入连续播放音乐状态
 int cursorY = 0;
-//语音唤醒
+// 语音唤醒
 int awake_flag = 1;
 
 /*/ 创建动态JSON文档对象和数组
@@ -55,26 +55,26 @@ String url = "";
 String url1 = "";
 String Date = "";
 
-String askquestion = "";        //存储stt语音转文字信息，即用户的提问信息
-String Answer = "";             //存储llm回答，用于语音合成（较短的回答）
-std::vector<String> subAnswers; //存储llm回答，用于语音合成（较长的回答，分段存储）
-int subindex = 0;               //subAnswers的下标，用于voicePlay()
-String text_temp = "";          //存储超出当前屏幕的文字，在下一屏幕显示
-int loopcount = 0;      //对话次数计数器
-int flag = 0;           //用来确保subAnswer1一定是大模型回答最开始的内容
-int conflag = 0;        //用于连续对话
-int await_flag = 1;     //待机标识
-int start_con = 0;      //标识是否开启了一轮对话
+String askquestion = "";        // 存储stt语音转文字信息，即用户的提问信息
+String Answer = "";             // 存储llm回答，用于语音合成（较短的回答）
+std::vector<String> subAnswers; // 存储llm回答，用于语音合成（较长的回答，分段存储）
+int subindex = 0;               // subAnswers的下标，用于voicePlay()
+String text_temp = "";          // 存储超出当前屏幕的文字，在下一屏幕显示
+int loopcount = 0;              // 对话次数计数器
+int flag = 0;                   // 用来确保subAnswer1一定是大模型回答最开始的内容
+int conflag = 0;                // 用于连续对话
+int await_flag = 1;             // 待机标识
+int start_con = 0;              // 标识是否开启了一轮对话
 int sendcount = 0;
 
 using namespace websockets; // 使用WebSocket命名空间
 // 创建WebSocket客户端对象
-WebsocketsClient webSocketClient;   //与llm通信
-WebsocketsClient webSocketClient1;  //与stt通信
+WebsocketsClient webSocketClient;  // 与llm通信
+WebsocketsClient webSocketClient1; // 与stt通信
 
 // 创建音频对象
 Audio1 audio1;
-Audio2 audio2(false, 3, I2S_NUM_1); 
+Audio2 audio2(false, 3, I2S_NUM_1);
 // 参数: 是否使用内部DAC（数模转换器）如果设置为true，将使用ESP32的内部DAC进行音频输出。否则，将使用外部I2S设备。
 // 指定启用的音频通道。可以设置为1（只启用左声道）或2（只启用右声道）或3（启用左右声道）
 // 指定使用哪个I2S端口。ESP32有两个I2S端口，I2S_NUM_0和I2S_NUM_1。可以根据需要选择不同的I2S端口。
@@ -150,12 +150,12 @@ void voicePlay()
         // 设置开始播放标志
         startPlay = true;
     }
-    else if (audio2.isplaying == 0 && musicplay == 1)   // 处理连续播放音乐逻辑
+    else if (audio2.isplaying == 0 && musicplay == 1) // 处理连续播放音乐逻辑
     {
         preferences.begin("music_store", true);
         int numMusic = preferences.getInt("numMusic", 0);
         musicnum = musicnum + 1 < numMusic ? musicnum + 1 : 0;
-        
+
         String musicName = preferences.getString(("musicName" + String(musicnum)).c_str(), "");
         String musicID = preferences.getString(("musicId" + String(musicnum)).c_str(), "");
         Serial.println("音乐名称: " + musicName);
@@ -164,7 +164,7 @@ void voicePlay()
         String audioStreamURL = "https://music.163.com/song/media/outer/url?id=" + musicID + ".mp3";
         Serial.println(audioStreamURL.c_str());
         audio2.connecttohost(audioStreamURL.c_str());
-        
+
         tft.fillRect(0, cursorY, 128, 50, ST7735_WHITE);
         askquestion = "正在顺序播放所有音乐，当前正在播放：" + musicName;
         Serial.println(askquestion);
@@ -219,8 +219,8 @@ void setup()
     // 初始化屏幕
     tft.initR(INITR_BLACKTAB);
     tft.fillScreen(ST77XX_WHITE);   // 设置屏幕背景为白色
-    tft.setTextColor(ST77XX_BLACK); //设置字体颜色为黑色
-    tft.setTextWrap(true);  // 开启文本自动换行，只支持英文
+    tft.setTextColor(ST77XX_BLACK); // 设置字体颜色为黑色
+    tft.setTextWrap(true);          // 开启文本自动换行，只支持英文
 
     // 初始化U8g2
     u8g2.begin(tft);
@@ -277,15 +277,18 @@ void loop()
     webSocketClient1.poll();
 
     // 如果有多段语音需要播放
-    if (startPlay)  voicePlay();    // 调用voicePlay函数播放后续的语音
+    if (startPlay)
+        voicePlay(); // 调用voicePlay函数播放后续的语音
 
     // 音频处理循环
     audio2.loop();
 
     // 如果音频正在播放
-    if (audio2.isplaying == 1)  digitalWrite(led, HIGH);    // 点亮板载LED指示灯
-    else    digitalWrite(led, LOW);     // 熄灭板载LED指示灯
-    
+    if (audio2.isplaying == 1)
+        digitalWrite(led, HIGH); // 点亮板载LED指示灯
+    else
+        digitalWrite(led, LOW); // 熄灭板载LED指示灯
+
     // 唤醒词识别
     if (audio2.isplaying == 0 && awake_flag == 0 && await_flag == 1)
     {
@@ -396,10 +399,11 @@ void getText(String role, String content)
     text.push_back(jsonString);
 
     // 输出vector中的内容
-    for (const auto& jsonStr : text) {
+    for (const auto &jsonStr : text)
+    {
         Serial.println(jsonStr);
     }
-    
+
     /*/ 将生成的JSON文档添加到全局变量text中
     text.add(jsoncon);
 
@@ -442,7 +446,8 @@ void checkLen()
     size_t totalBytes = 0;
 
     // 计算vector中每个字符串的长度
-    for (const auto& jsonStr : text) {
+    for (const auto &jsonStr : text)
+    {
         totalBytes += jsonStr.length();
     }
     Serial.print("text size:");
@@ -494,12 +499,16 @@ DynamicJsonDocument gen_params(const char *appid, const char *domain, const char
         textArray.add(item);
     }*/
     // 将jsonVector中的内容添加到JsonArray中
-    for (const auto& jsonStr : text) {
+    for (const auto &jsonStr : text)
+    {
         DynamicJsonDocument tempDoc(512);
         DeserializationError error = deserializeJson(tempDoc, jsonStr);
-        if (!error) {
+        if (!error)
+        {
             textArray.add(tempDoc.as<JsonVariant>());
-        } else {
+        }
+        else
+        {
             Serial.print("反序列化失败: ");
             Serial.println(error.c_str());
         }
@@ -531,12 +540,16 @@ DynamicJsonDocument gen_params_doubao(const char *model, const char *role_set)
         textArray.add(item);
     }*/
     // 将jsonVector中的内容添加到JsonArray中
-    for (const auto& jsonStr : text) {
+    for (const auto &jsonStr : text)
+    {
         DynamicJsonDocument tempDoc(512);
         DeserializationError error = deserializeJson(tempDoc, jsonStr);
-        if (!error) {
+        if (!error)
+        {
             textArray.add(tempDoc.as<JsonVariant>());
-        } else {
+        }
+        else
+        {
             Serial.print("反序列化失败: ");
             Serial.println(error.c_str());
         }
@@ -641,8 +654,8 @@ void processResponse(int status)
         Answer = "";
         conflag = 1;
     }
-    //else if (Answer.length() < 180)
-        //break;
+    // else if (Answer.length() < 180)
+    // break;
 }
 
 // 将回复的文本转成语音
@@ -750,7 +763,7 @@ void onEventsCallback(WebsocketsEvent event, String data)
 void doubao()
 {
     HTTPClient http;
-    http.setTimeout(20000);     // 设置请求超时时间
+    http.setTimeout(20000); // 设置请求超时时间
     http.begin(apiUrl);
     http.addHeader("Content-Type", "application/json");
     String token_key = String("Bearer ") + doubao_apiKey;
@@ -770,21 +783,24 @@ void doubao()
     Serial.println(jsonString);
     int httpResponseCode = http.POST(jsonString);
 
-    if (httpResponseCode == 200) {
+    if (httpResponseCode == 200)
+    {
         // 在 stream（流式调用） 模式下，基于 SSE (Server-Sent Events) 协议返回生成内容，每次返回结果为生成的部分内容片段
-        WiFiClient* stream = http.getStreamPtr();   // 返回一个指向HTTP响应流的指针，通过它可以读取服务器返回的数据
+        WiFiClient *stream = http.getStreamPtr(); // 返回一个指向HTTP响应流的指针，通过它可以读取服务器返回的数据
 
-        while (stream->connected()) {   // 这个循环会一直运行，直到客户端（即stream）断开连接。
-            String line = stream->readStringUntil('\n');    // 从流中读取一行字符串，直到遇到换行符\n为止
+        while (stream->connected())
+        {                                                // 这个循环会一直运行，直到客户端（即stream）断开连接。
+            String line = stream->readStringUntil('\n'); // 从流中读取一行字符串，直到遇到换行符\n为止
             // 检查读取的行是否以data:开头。
             // 在SSE（Server-Sent Events）协议中，服务器发送的数据行通常以data:开头，这样客户端可以识别出这是实际的数据内容。
-            if (line.startsWith("data:")) {
+            if (line.startsWith("data:"))
+            {
                 // 如果行以data:开头，提取出data:后面的部分，并去掉首尾的空白字符。
                 String data = line.substring(5);
                 data.trim();
                 // 输出读取的数据，不建议，因为太多了，一次才一两个字
-                //Serial.print("data: ");
-                //Serial.println(data);
+                // Serial.print("data: ");
+                // Serial.println(data);
 
                 int status = 0;
                 DynamicJsonDocument jsonResponse(400);
@@ -854,8 +870,8 @@ void doubao()
             processResponse(status);
         }*/
         return;
-    } 
-    else 
+    }
+    else
     {
         Serial.printf("Error %i \n", httpResponseCode);
         Serial.println(http.getString());
@@ -865,14 +881,17 @@ void doubao()
 }
 
 // 提取字符串中的数字
-String extractNumber(const String &str) {
-  String result;
-  for (size_t i = 0; i < str.length(); i++) {
-    if (isDigit(str[i])) {
-      result += str[i];
+String extractNumber(const String &str)
+{
+    String result;
+    for (size_t i = 0; i < str.length(); i++)
+    {
+        if (isDigit(str[i]))
+        {
+            result += str[i];
+        }
     }
-  }
-  return result;
+    return result;
 }
 
 // 音量控制
@@ -1001,7 +1020,7 @@ void onMessageCallback1(WebsocketsMessage message)
         // 获取JSON数据中的结果部分，并提取文本内容
         JsonArray ws = jsonDocument["data"]["result"]["ws"].as<JsonArray>();
 
-        if (jsonDocument["data"]["status"] != 2)
+        if (jsonDocument["data"]["status"] != 2 || jsonDocument["data"]["result"]["sn"] == 1)
         {
             askquestion = "";
         }
@@ -1027,7 +1046,7 @@ void onMessageCallback1(WebsocketsMessage message)
             // 如果是调声音大小的指令，就不打断当前的语音
             if ((askquestion.indexOf("声音") == -1 && askquestion.indexOf("音量") == -1) && !((askquestion.indexOf("开") > -1 || askquestion.indexOf("关") > -1) && askquestion.indexOf("灯") > -1))
             {
-                webSocketClient.close();    //关闭llm服务器，打断上一次提问的回答生成
+                webSocketClient.close(); // 关闭llm服务器，打断上一次提问的回答生成
                 audio2.isplaying = 0;
                 startPlay = false;
                 Answer = "";
@@ -1045,10 +1064,10 @@ void onMessageCallback1(WebsocketsMessage message)
                 u8g2.setCursor(0, 11);
                 u8g2.print("正在识别唤醒词。。。");
                 // 增加足够多的同音字可以提高唤醒率，支持多唤醒词唤醒
-                if((askquestion.indexOf("你好") > -1 || askquestion.indexOf("您好") > -1) && (askquestion.indexOf("坤坤") > -1 || askquestion.indexOf("小白") > -1 || askquestion.indexOf("丁真") > -1 || askquestion.indexOf("九歌") > -1))
+                if ((askquestion.indexOf("你好") > -1 || askquestion.indexOf("您好") > -1) && (askquestion.indexOf("坤坤") > -1 || askquestion.indexOf("小白") > -1 || askquestion.indexOf("丁真") > -1 || askquestion.indexOf("九歌") > -1))
                 {
                     await_flag = 0;
-                    start_con = 1;      //对话开始标识
+                    start_con = 1; // 对话开始标识
                     // 清空屏幕
                     tft.fillScreen(ST77XX_WHITE);
                     tft.setCursor(0, 0);
@@ -1065,7 +1084,7 @@ void onMessageCallback1(WebsocketsMessage message)
                 }
                 else
                 {
-                    u8g2.setCursor(0, 11+12);
+                    u8g2.setCursor(0, 11 + 12);
                     u8g2.print("识别错误，请再次唤醒！");
                     // 将awake_flag置为0,继续进行唤醒词识别
                     awake_flag = 0;
@@ -1090,7 +1109,7 @@ void onMessageCallback1(WebsocketsMessage message)
             }
             else if (askquestion.indexOf("退下") > -1 || askquestion.indexOf("再见") > -1 || askquestion.indexOf("拜拜") > -1)
             {
-                start_con = 0;      // 标识一轮对话结束
+                start_con = 0; // 标识一轮对话结束
                 // 清空屏幕
                 tft.fillScreen(ST77XX_WHITE);
                 tft.setCursor(0, 0);
@@ -1101,7 +1120,7 @@ void onMessageCallback1(WebsocketsMessage message)
                 tft.print("assistant");
                 tft.print(": ");
 
-                askquestion = "喵~主人，我先退下了，有事再找我。"; 
+                askquestion = "喵~主人，我先退下了，有事再找我。";
                 audio2.connecttospeech(askquestion.c_str(), "zh");
                 // 打印内容
                 displayWrappedText(askquestion.c_str(), tft.getCursorX(), tft.getCursorY() + 11, 128);
@@ -1183,7 +1202,7 @@ void onMessageCallback1(WebsocketsMessage message)
                     String audioStreamURL = "https://music.163.com/song/media/outer/url?id=" + musicID + ".mp3";
                     Serial.println(audioStreamURL.c_str());
                     audio2.connecttohost(audioStreamURL.c_str());
-                    
+
                     if (musicplay == 0)
                         askquestion = "正在播放音乐：" + musicName;
                     else
@@ -1213,7 +1232,7 @@ void onMessageCallback1(WebsocketsMessage message)
                     String audioStreamURL = "https://music.163.com/song/media/outer/url?id=" + musicID + ".mp3";
                     Serial.println(audioStreamURL.c_str());
                     audio2.connecttohost(audioStreamURL.c_str());
-                    
+
                     if (musicplay == 0)
                         askquestion = "正在播放音乐：" + musicName;
                     else
@@ -1242,7 +1261,7 @@ void onMessageCallback1(WebsocketsMessage message)
                     String audioStreamURL = "https://music.163.com/song/media/outer/url?id=" + musicID + ".mp3";
                     Serial.println(audioStreamURL.c_str());
                     audio2.connecttohost(audioStreamURL.c_str());
-                    
+
                     if (musicplay == 0)
                         askquestion = "正在播放音乐：" + musicName;
                     else
@@ -1281,7 +1300,8 @@ void onMessageCallback1(WebsocketsMessage message)
                         Serial.println("音乐ID: " + musicID);
                         for (int i = 0; i < numMusic; ++i)
                         {
-                            if (preferences.getString(("musicId" + String(i)).c_str(), "") == musicID)  musicnum = i;
+                            if (preferences.getString(("musicId" + String(i)).c_str(), "") == musicID)
+                                musicnum = i;
                         }
                     }
                     else
@@ -1306,7 +1326,8 @@ void onMessageCallback1(WebsocketsMessage message)
                     }
 
                     // 输出结果
-                    if (musicID == "") {
+                    if (musicID == "")
+                    {
                         mainStatus = 1;
                         Serial.println("未找到对应的音乐");
                         // 打印角色
@@ -1317,13 +1338,15 @@ void onMessageCallback1(WebsocketsMessage message)
                         displayWrappedText(askquestion.c_str(), tft.getCursorX(), tft.getCursorY() + 11, 128);
                         askquestion = "";
                         conflag = 1;
-                    } else {
+                    }
+                    else
+                    {
                         // 自建音乐服务器（这里白嫖了网易云的音乐服务器），按照音乐数字id查找对应歌曲
                         mainStatus = 0;
                         String audioStreamURL = "https://music.163.com/song/media/outer/url?id=" + musicID + ".mp3";
                         Serial.println(audioStreamURL.c_str());
                         audio2.connecttohost(audioStreamURL.c_str());
-                        
+
                         if (musicplay == 0)
                             askquestion = "正在播放音乐：" + musicName;
                         else
@@ -1412,7 +1435,8 @@ void onMessageCallback1(WebsocketsMessage message)
                     Serial.println("音乐ID: " + musicID);
                     for (int i = 0; i < numMusic; ++i)
                     {
-                        if (preferences.getString(("musicId" + String(i)).c_str(), "") == musicID)  musicnum = i;
+                        if (preferences.getString(("musicId" + String(i)).c_str(), "") == musicID)
+                            musicnum = i;
                     }
                 }
                 else
@@ -1437,7 +1461,8 @@ void onMessageCallback1(WebsocketsMessage message)
                 }
 
                 // 输出结果
-                if (musicID == "") {
+                if (musicID == "")
+                {
                     mainStatus = 1;
                     Serial.println("未找到对应的音乐");
                     // 打印角色
@@ -1448,7 +1473,9 @@ void onMessageCallback1(WebsocketsMessage message)
                     displayWrappedText(askquestion.c_str(), tft.getCursorX(), tft.getCursorY() + 11, 128);
                     askquestion = "";
                     conflag = 1;
-                } else {
+                }
+                else
+                {
                     // 自建音乐服务器（这里白嫖了网易云的音乐服务器），按照音乐数字id查找对应歌曲
                     mainStatus = 0;
                     String audioStreamURL = "https://music.163.com/song/media/outer/url?id=" + musicID + ".mp3";
@@ -1490,7 +1517,7 @@ void onMessageCallback1(WebsocketsMessage message)
                 case 1:
                     ConnServer();
                     break;
-                
+
                 default:
                     ConnServer();
                     break;
@@ -1545,7 +1572,7 @@ void onEventsCallback1(WebsocketsEvent event, String data)
             // 待机状态（语音唤醒状态）也可通过boot键启动
             if (digitalRead(key) == 0 && await_flag == 1)
             {
-                start_con = 1;      //对话开始标识
+                start_con = 1; // 对话开始标识
                 await_flag = 0;
                 webSocketClient1.close();
                 break;
@@ -1563,9 +1590,9 @@ void onEventsCallback1(WebsocketsEvent event, String data)
             float rms = calculateRMS((uint8_t *)audio1.wavData[0], 1280);
             printf("%d %f\n", 0, rms);
 
-            if(null_voice >= 80)
+            if (null_voice >= 80)
             {
-                if (start_con == 1)     // 表示正处于对话中，才回复退下，没有进入对话则继续待机
+                if (start_con == 1) // 表示正处于对话中，才回复退下，没有进入对话则继续待机
                 {
                     start_con = 0;
                     // 清空屏幕
@@ -1698,9 +1725,6 @@ void onEventsCallback1(WebsocketsEvent event, String data)
     }
 }
 
-
-
-
 /*---------基本不需要再改的函数---------*/
 void ConnServer()
 {
@@ -1777,7 +1801,7 @@ int wifiConnect()
             Serial.print("password:");
             Serial.println(password);
             // 在屏幕上显示每个网络的连接情况
-            u8g2.setCursor(0, u8g2.getCursorY()+12);
+            u8g2.setCursor(0, u8g2.getCursorY() + 12);
             u8g2.print(ssid);
 
             uint8_t count = 0;
@@ -1795,7 +1819,7 @@ int wifiConnect()
                 {
                     Serial.printf("\r\n-- wifi connect fail! --\r\n");
                     // 在屏幕上显示连接失败信息
-                    u8g2.setCursor(u8g2.getCursorX()+6, u8g2.getCursorY());
+                    u8g2.setCursor(u8g2.getCursorX() + 6, u8g2.getCursorY());
                     u8g2.print("Failed!");
                     break;
                 }
@@ -1814,7 +1838,7 @@ int wifiConnect()
                 // 输出当前空闲堆内存大小
                 Serial.println("Free Heap: " + String(ESP.getFreeHeap()));
                 // 在屏幕上显示连接成功信息
-                u8g2.setCursor(u8g2.getCursorX()+6, u8g2.getCursorY());
+                u8g2.setCursor(u8g2.getCursorX() + 6, u8g2.getCursorY());
                 u8g2.print("Connected!");
                 preferences.end();
                 return 1;
@@ -1837,15 +1861,15 @@ int wifiConnect()
 
 void getTimeFromServer()
 {
-    String timeurl = "https://www.baidu.com";   // 定义用于获取时间的URL
-    HTTPClient http;                // 创建HTTPClient对象
-    http.begin(timeurl);            // 初始化HTTP连接
-    const char *headerKeys[] = {"Date"};        // 定义需要收集的HTTP头字段
-    http.collectHeaders(headerKeys, sizeof(headerKeys) / sizeof(headerKeys[0]));    // 设置要收集的HTTP头字段
-    int httpCode = http.GET();      // 发送HTTP GET请求
-    Date = http.header("Date");     // 从HTTP响应头中获取Date字段
-    Serial.println(Date);           // 输出获取到的Date字段到串口
-    http.end();                     // 结束HTTP连接
+    String timeurl = "https://www.baidu.com";                                    // 定义用于获取时间的URL
+    HTTPClient http;                                                             // 创建HTTPClient对象
+    http.begin(timeurl);                                                         // 初始化HTTP连接
+    const char *headerKeys[] = {"Date"};                                         // 定义需要收集的HTTP头字段
+    http.collectHeaders(headerKeys, sizeof(headerKeys) / sizeof(headerKeys[0])); // 设置要收集的HTTP头字段
+    int httpCode = http.GET();                                                   // 发送HTTP GET请求
+    Date = http.header("Date");                                                  // 从HTTP响应头中获取Date字段
+    Serial.println(Date);                                                        // 输出获取到的Date字段到串口
+    http.end();                                                                  // 结束HTTP连接
 
     // delay(50); // 根据实际情况可以添加延时，以便避免频繁请求
 }
